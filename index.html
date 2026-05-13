@@ -1,0 +1,762 @@
+下面是你可以直接上传到静态网站（比如 Netlify、Vercel、Cloudflare Pages）的完整 index.html 源代码。
+
+只需要：
+	1.	新建一个 index.html
+	2.	把下面代码完整复制进去
+	3.	上传即可运行
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>蔬菜采购企业版</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body{
+margin:0;
+background:#f5f7f6;
+font-family:-apple-system;
+color:#222;
+}
+
+.app{
+max-width:1100px;
+margin:auto;
+padding:14px;
+}
+
+.card{
+background:#fff;
+border-radius:18px;
+padding:16px;
+margin-bottom:14px;
+box-shadow:0 4px 12px rgba(0,0,0,.05);
+}
+
+h1,h2{
+color:#2d6a4f;
+}
+
+.grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+gap:10px;
+}
+
+input,select,textarea{
+width:100%;
+padding:12px;
+border:1px solid #d8e2dc;
+border-radius:12px;
+box-sizing:border-box;
+}
+
+button{
+padding:12px;
+border:none;
+border-radius:12px;
+background:#2d6a4f;
+color:#fff;
+font-weight:700;
+cursor:pointer;
+}
+
+.gray{
+background:#e5e7eb;
+color:#111;
+}
+
+.red{
+background:#b00020;
+}
+
+.list{
+display:flex;
+flex-direction:column;
+gap:10px;
+}
+
+.item{
+border:1px solid #e5e7eb;
+border-radius:14px;
+padding:14px;
+}
+
+.flex{
+display:flex;
+justify-content:space-between;
+gap:10px;
+align-items:center;
+}
+
+.badge{
+background:#eef5ef;
+padding:4px 10px;
+border-radius:999px;
+font-size:12px;
+}
+
+.toolbar{
+display:flex;
+gap:8px;
+flex-wrap:wrap;
+}
+
+.toolbar>*{
+flex:1;
+}
+
+.stat{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+gap:10px;
+}
+
+.box{
+background:#f1f8f2;
+padding:14px;
+border-radius:14px;
+}
+
+.big{
+font-size:22px;
+font-weight:800;
+color:#1e4620;
+}
+
+canvas{
+max-height:320px;
+}
+
+.small{
+font-size:12px;
+color:#666;
+}
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+<div class="card">
+<h1>🥬 蔬菜采购企业版</h1>
+<div class="small">
+供应商管理 · 数据分析 · 利润统计 · 离线使用
+</div>
+</div>
+
+<div class="card">
+
+<h2>采购录入</h2>
+
+<div class="grid">
+<input type="date" id="date">
+<input type="text" id="name" placeholder="品名">
+<input type="number" id="price" placeholder="采购价">
+<input type="number" id="qty" placeholder="数量">
+<input type="text" id="unit" placeholder="单位">
+<input type="number" id="sellPrice" placeholder="销售价">
+</div>
+
+<div class="grid" style="margin-top:10px">
+<input type="text" id="supplier" placeholder="供应商">
+<input type="text" id="phone" placeholder="联系电话">
+<input type="text" id="origin" placeholder="产地">
+
+<select id="quality">
+<option value="">品质</option>
+<option>A</option>
+<option>B</option>
+<option>C</option>
+</select>
+</div>
+
+<div style="margin-top:10px">
+<textarea id="note" placeholder="备注"></textarea>
+</div>
+
+<div class="toolbar" style="margin-top:12px">
+<button onclick="saveRecord()">保存采购</button>
+<button class="gray" onclick="clearForm()">清空</button>
+</div>
+
+</div>
+
+<div class="card">
+<h2>经营统计</h2>
+<div class="stat" id="stats"></div>
+</div>
+
+<div class="card">
+
+<h2>数据分析</h2>
+
+<div class="grid">
+
+<div>
+<h3>利润趋势</h3>
+<canvas id="profitChart"></canvas>
+</div>
+
+<div>
+<h3>供应商采购占比</h3>
+<canvas id="supplierChart"></canvas>
+</div>
+
+</div>
+
+</div>
+
+<div class="card">
+
+<div class="toolbar">
+
+<input
+id="search"
+placeholder="搜索供应商 / 品名"
+oninput="render()">
+
+<select id="filterSupplier" onchange="render()">
+<option value="">全部供应商</option>
+</select>
+
+<select id="filterQuality" onchange="render()">
+<option value="">全部品质</option>
+<option>A</option>
+<option>B</option>
+<option>C</option>
+</select>
+
+<button onclick="exportData()">导出数据</button>
+
+<input
+type="file"
+id="importFile"
+hidden
+onchange="importData(event)">
+
+<button
+class="gray"
+onclick="document.getElementById('importFile').click()">
+恢复数据
+</button>
+
+</div>
+
+</div>
+
+<div class="card">
+<h2>供应商管理</h2>
+<div class="list" id="supplierList"></div>
+</div>
+
+<div class="card">
+<h2>采购记录</h2>
+<div class="list" id="list"></div>
+</div>
+
+</div>
+
+<script>
+
+const KEY='veg_enterprise_v1';
+
+let records=JSON.parse(
+localStorage.getItem(KEY)||'[]'
+);
+
+let charts={};
+
+date.value=new Date().toISOString().slice(0,10);
+
+function saveLocal(){
+localStorage.setItem(
+KEY,
+JSON.stringify(records)
+);
+}
+
+function clearForm(){
+
+[
+'name',
+'price',
+'qty',
+'unit',
+'sellPrice',
+'supplier',
+'phone',
+'origin',
+'note'
+].forEach(id=>{
+
+document.getElementById(id).value='';
+
+});
+
+quality.value='';
+
+}
+
+function saveRecord(){
+
+const r={
+
+id:Date.now(),
+
+date:date.value,
+
+name:name.value.trim(),
+
+price:Number(price.value)||0,
+
+qty:Number(qty.value)||0,
+
+unit:unit.value.trim(),
+
+sellPrice:Number(sellPrice.value)||0,
+
+supplier:supplier.value.trim(),
+
+phone:phone.value.trim(),
+
+origin:origin.value.trim(),
+
+quality:quality.value,
+
+note:note.value.trim()
+
+};
+
+if(!r.name){
+
+alert('请输入品名');
+
+return;
+
+}
+
+r.total=r.price*r.qty;
+
+r.revenue=r.sellPrice*r.qty;
+
+r.profit=r.revenue-r.total;
+
+records.unshift(r);
+
+saveLocal();
+
+clearForm();
+
+render();
+
+}
+
+function deleteRecord(id){
+
+if(!confirm('删除记录？')) return;
+
+records=records.filter(r=>r.id!==id);
+
+saveLocal();
+
+render();
+
+}
+
+function renderStats(data){
+
+const purchase=data.reduce((s,r)=>s+r.total,0);
+
+const revenue=data.reduce((s,r)=>s+r.revenue,0);
+
+const profit=data.reduce((s,r)=>s+r.profit,0);
+
+const avg=data.length
+?(data.reduce((s,r)=>s+r.price,0)/data.length).toFixed(2)
+:0;
+
+stats.innerHTML=`
+
+<div class="box">
+<div>记录数</div>
+<div class="big">${data.length}</div>
+</div>
+
+<div class="box">
+<div>采购总额</div>
+<div class="big">¥${purchase.toFixed(2)}</div>
+</div>
+
+<div class="box">
+<div>销售总额</div>
+<div class="big">¥${revenue.toFixed(2)}</div>
+</div>
+
+<div class="box">
+<div>总利润</div>
+<div class="big">¥${profit.toFixed(2)}</div>
+</div>
+
+<div class="box">
+<div>平均采购价</div>
+<div class="big">¥${avg}</div>
+</div>
+
+`;
+
+}
+
+function renderSupplier(data){
+
+const map={};
+
+data.forEach(r=>{
+
+if(!r.supplier) return;
+
+if(!map[r.supplier]){
+
+map[r.supplier]={
+
+count:0,
+
+amount:0,
+
+profit:0,
+
+phone:r.phone||'-'
+
+};
+
+}
+
+map[r.supplier].count++;
+
+map[r.supplier].amount+=r.total;
+
+map[r.supplier].profit+=r.profit;
+
+});
+
+supplierList.innerHTML=
+
+Object.entries(map).map(([name,v])=>`
+
+<div class="item">
+
+<div class="flex">
+
+<div>
+
+<div style="font-size:18px;font-weight:800">
+${name}
+</div>
+
+<div class="small">
+电话：${v.phone}
+</div>
+
+</div>
+
+<div class="badge">
+${v.count} 次合作
+</div>
+
+</div>
+
+<div class="grid" style="margin-top:10px">
+
+<div>
+采购金额：¥${v.amount.toFixed(2)}
+</div>
+
+<div>
+利润贡献：¥${v.profit.toFixed(2)}
+</div>
+
+</div>
+
+</div>
+
+`).join('')
+
+|| '<div class="small">暂无供应商数据</div>';
+
+}
+
+function renderCharts(data){
+
+const byDate={};
+
+data.forEach(r=>{
+
+if(!byDate[r.date])
+byDate[r.date]=0;
+
+byDate[r.date]+=r.profit;
+
+});
+
+const labels=Object.keys(byDate).sort();
+
+const profits=labels.map(d=>byDate[d]);
+
+if(charts.profit)
+charts.profit.destroy();
+
+charts.profit=new Chart(
+
+document.getElementById('profitChart'),
+
+{
+type:'line',
+
+data:{
+labels,
+
+datasets:[{
+
+label:'利润',
+
+data:profits,
+
+borderColor:'#2d6a4f',
+
+backgroundColor:'rgba(45,106,79,.2)'
+
+}]
+}
+
+});
+
+const supplierMap={};
+
+data.forEach(r=>{
+
+if(!r.supplier) return;
+
+if(!supplierMap[r.supplier])
+supplierMap[r.supplier]=0;
+
+supplierMap[r.supplier]+=r.total;
+
+});
+
+if(charts.supplier)
+charts.supplier.destroy();
+
+charts.supplier=new Chart(
+
+document.getElementById('supplierChart'),
+
+{
+type:'doughnut',
+
+data:{
+
+labels:Object.keys(supplierMap),
+
+datasets:[{
+data:Object.values(supplierMap)
+}]
+
+}
+
+});
+
+}
+
+function render(){
+
+const s=search.value.toLowerCase();
+
+const fs=filterSupplier.value;
+
+const fq=filterQuality.value;
+
+const data=records.filter(r=>{
+
+if(fs && r.supplier!==fs)
+return false;
+
+if(fq && r.quality!==fq)
+return false;
+
+if(s){
+
+const text=JSON.stringify(r).toLowerCase();
+
+if(!text.includes(s))
+return false;
+
+}
+
+return true;
+
+});
+
+renderStats(data);
+
+renderSupplier(data);
+
+renderCharts(data);
+
+const suppliers=[
+...new Set(
+records.map(r=>r.supplier).filter(Boolean)
+)
+];
+
+filterSupplier.innerHTML=
+'<option value="">全部供应商</option>'+
+suppliers.map(s=>`
+<option ${s===fs?'selected':''}>
+${s}
+</option>
+`).join('');
+
+list.innerHTML=data.map(r=>`
+
+<div class="item">
+
+<div class="flex">
+
+<div>
+
+<div style="font-size:20px;font-weight:800">
+${r.name}
+</div>
+
+<div class="small">
+${r.date}
+</div>
+
+</div>
+
+<div class="badge">
+${r.quality||'未评级'}
+</div>
+
+</div>
+
+<div class="grid" style="margin-top:12px">
+
+<div>采购价：¥${r.price}</div>
+
+<div>销售价：¥${r.sellPrice||0}</div>
+
+<div>数量：${r.qty}${r.unit||''}</div>
+
+<div>采购金额：¥${r.total.toFixed(2)}</div>
+
+<div>销售金额：¥${r.revenue.toFixed(2)}</div>
+
+<div>利润：¥${r.profit.toFixed(2)}</div>
+
+</div>
+
+<div style="margin-top:10px">
+
+供应商：${r.supplier||'-'}
+
+｜ 电话：${r.phone||'-'}
+
+</div>
+
+<div style="margin-top:6px">
+
+产地：${r.origin||'-'}
+
+</div>
+
+${r.note?`
+
+<div style="
+margin-top:10px;
+background:#f7f7f7;
+padding:10px;
+border-radius:10px">
+
+${r.note}
+
+</div>
+
+`:''}
+
+<div style="margin-top:12px">
+
+<button
+class="red"
+onclick="deleteRecord(${r.id})">
+
+删除
+
+</button>
+
+</div>
+
+</div>
+
+`).join('');
+
+}
+
+function exportData(){
+
+const blob=new Blob(
+[JSON.stringify(records,null,2)],
+{type:'application/json'}
+);
+
+const a=document.createElement('a');
+
+a.href=URL.createObjectURL(blob);
+
+a.download='蔬菜采购企业版备份.json';
+
+a.click();
+
+}
+
+function importData(e){
+
+const file=e.target.files[0];
+
+if(!file) return;
+
+const reader=new FileReader();
+
+reader.onload=function(ev){
+
+try{
+
+records=JSON.parse(ev.target.result);
+
+saveLocal();
+
+render();
+
+alert('恢复成功');
+
+}catch{
+
+alert('文件错误');
+
+}
+
+};
+
+reader.readAsText(file);
+
+}
+
+render();
+
+</script>
+
+</body>
+</html>
